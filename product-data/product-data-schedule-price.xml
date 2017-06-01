@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:cloudhub="http://www.mulesoft.org/schema/mule/cloudhub" xmlns:schedulers="http://www.mulesoft.org/schema/mule/schedulers"
+	xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/schedulers http://www.mulesoft.org/schema/mule/schedulers/current/mule-schedulers.xsd
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd
+http://www.mulesoft.org/schema/mule/cloudhub http://www.mulesoft.org/schema/mule/cloudhub/current/mule-cloudhub.xsd">
+    <http:listener-config name="HTTP_Listener_Configuration" host="0.0.0.0" port="8081" basePath="/test" doc:name="HTTP Listener Configuration"/>
+    <flow name="product-data-schedule-getPrices-full-d365" processingStrategy="synchronous">
+        <poll doc:name="Poll">
+        <schedulers:cron-scheduler expression="${poll.frequency.price.full.d365}"/>
+		<watermark variable="LAST_RUN_DATE_D365_PRICE_FULL" default-expression="#[server.dateTime.plusDays(-1).format(&quot;yyyy-MM-dd'T'HH:mm:ss.SSS'Z'&quot;);]" update-expression="#[server.dateTime.format(&quot;yyyy-MM-dd'T'HH:mm:ss.SSS'Z'&quot;);]"/>
+		<parse-template location="templates/json/PopulateGetPricesRequest.json" doc:name="Populate Price Request"/>
+        </poll>
+        <logger message="##BM-LOG## FLOW NAME: #[flow.name] ## SCHEDULER EXECUTED - FULL - PRICE - DYNAMICS 365 - #[flowVars.LAST_RUN_DATE_D365_PRICE_FULL]" level="INFO" doc:name="Log Scheduler Completed"/>
+        <logger message="##BM-LOG## FLOW NAME: #[flow.name] ## REQUEST SENT TO DYNAMICS: #[payload]" level="DEBUG" doc:name="Log Request Sent to Dynamics"/>
+        
+        <catch-exception-strategy doc:name="Catch Exception Strategy">
+            <enricher source="#[payload]" target="#[flowVars.exceptionAlertBody]" doc:name="Message Enricher">
+                <parse-template location="${app.home}/classes/exceptionTemplates/product-data-get-price.txt" doc:name="Populate Alert Body"/>
+            </enricher>
+            <logger message="## AS-LOG ## EXCEPTION CAUGHT ## FLOW NAME: #[flow.name] ## MESSAGE ID: #[message.id] - FAILED WITH EXCEPTION - #[exception] #[exception.message.cause]" level="INFO" doc:name="Log Failure"/>
+            <logger message="#[flowVars.alertFlowName=flow.name]" level="INFO" doc:name="Extract Flow Name"/>
+           <message-properties-transformer scope="invocation" doc:name="Get Properties">
+                <add-message-property key="cloudhubDomain" value="${cloudhub.domain}"/>
+                <add-message-property key="cloudhubDisableAlert" value="${cloudhub.disable.alert}"/>
+            </message-properties-transformer>
+            <expression-filter expression="#[!(flowVars.cloudhubDisableAlert contains flowVars.alertFlowName)]" doc:name="Disable Alert ?"/>
+             <cloudhub:create-notification domain="${cloudhub.domain}" config-ref="Cloudhub__Inhered_Token_Authentication" message="#['GenAlert1_' + flowVars.alertFlowName]" priority="WARN" doc:name="Cloudhub Alert">
+				<cloudhub:custom-properties>
+                    <cloudhub:custom-property key="alertFlowName" value-ref="#[flowVars.alertFlowName]"/>
+                    <cloudhub:custom-property key="exceptionAlertBody" value-ref="#[flowVars.exceptionAlertBody]"/>
+                    <cloudhub:custom-property key="appName" value-ref="#[app.name]"/>
+                    <cloudhub:custom-property key="domain" value-ref="#[flowVars.cloudhubDomain]"/>
+				</cloudhub:custom-properties>
+			</cloudhub:create-notification>
+        </catch-exception-strategy>
+    </flow>
+</mule>

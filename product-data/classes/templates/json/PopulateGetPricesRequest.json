@@ -1,0 +1,6 @@
+{
+  "PriceRequest": {
+    "Runtype": "FULL",
+    "LastRunDateTime": "#[flowVars.LAST_RUN_DATE_D365_PRICE_FULL]"
+  }
+}

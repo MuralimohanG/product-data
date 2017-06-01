@@ -1,0 +1,21 @@
+An error occurred when attempting to get price details
+
+<br> <br>
+The error was:
+
+#[exception] #[exception.message.cause]
+
+
+<br> <br>
+
+
+
+<B>Required Actions</b>
+<ul>
+	<li> Raise Service Desk Ticket</li>
+</ul>
+<ul>
+	<li>Contact Internal Mulesoft team to investigate error</li>
+<ul>
+	
+	Once the error is resolved, the transaction can be replayed from insight
